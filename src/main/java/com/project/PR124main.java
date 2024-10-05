@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Scanner;
 
 import com.project.utilitats.UTF8Utils;
@@ -132,38 +133,94 @@ public class PR124main {
 
     // Mètode per trobar la posició d'un estudiant al fitxer segons el número de registre
     private long trobarPosicioRegistre(RandomAccessFile raf, int registreBuscat) throws IOException {
-        // *************** CODI PRÀCTICA **********************/
-        return 0; // Substitueix pel peu
+        long posicio = 0;
+        raf.seek(0); // Comença al principi
+
+        while (raf.getFilePointer() < raf.length()) {
+            int registre = raf.readInt();
+            if (registre == registreBuscat) {
+                return posicio;
+            }
+            posicio += ID_SIZE + NAME_MAX_BYTES + GRADE_SIZE;
+            raf.seek(posicio); // Saltar al següent
+        }
+        return -1;
     }
 
     // Operacions amb fitxers
     // Mètode que manipula el fitxer i llista tots els estudiants (independent per al test)
     public void llistarEstudiantsFitxer() throws IOException {
-        // *************** CODI PRÀCTICA **********************/
+        try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
+            raf.seek(0); //Crea un fitxer
+            while (raf.getFilePointer() < raf.length()) {
+                int registre = raf.readInt();
+                String nom = llegirNom(raf);
+                float nota = raf.readFloat();
+                System.out.print("Registre: " +registre +", Nom: "+ nom+ ", Nota: "+nota+"\n");
+            }
+        }
     }
 
     // Mètode que manipula el fitxer i afegeix l'estudiant
     public void afegirEstudiantFitxer(int registre, String nom, float nota) throws IOException {
-        // *************** CODI PRÀCTICA **********************/
+        try (RandomAccessFile raf = new RandomAccessFile(filePath, "rw")) {
+            raf.seek(raf.length());
+            raf.writeInt(registre);
+            escriureNom(raf, nom);
+            raf.writeFloat(nota);
+            System.out.println("Estudiant afegit amb èxit.");
+        }
     }
 
     // Mètode que manipula el fitxer i consulta la nota d'un estudiant
     public void consultarNotaFitxer(int registre) throws IOException {
-        // *************** CODI PRÀCTICA **********************/
+        try (RandomAccessFile raf = new RandomAccessFile(filePath, "r")) {
+            long posicio = trobarPosicioRegistre(raf, registre);
+            if (posicio == -1) {
+                System.out.println("No s'ha trobat l'estudiant amb registre: "+registre);
+                return;
+            }
+            raf.seek(posicio + GRADE_POS);
+            float nota = raf.readFloat();
+            System.out.printf("Nota de l'estudiant %d: %.2f\n", registre, nota);
+        }
     }
 
     // Mètode que manipula el fitxer i actualitza la nota d'un estudiant
     public void actualitzarNotaFitxer(int registre, float novaNota) throws IOException {
-        // *************** CODI PRÀCTICA **********************/
+        try (RandomAccessFile raf = new RandomAccessFile(filePath, "rw")) {
+            long posicio = trobarPosicioRegistre(raf, registre);
+            if (posicio == -1) {
+                System.out.println("No s'ha trobat l'estudiant amb registre: "+registre);
+                return;
+            }
+            raf.seek(posicio + GRADE_POS);
+            raf.writeFloat(novaNota);
+            System.out.println("Nota actualitzada amb èxit.");
+        }
     }
 
     // Funcions auxiliars per a la lectura i escriptura del nom amb UTF-8
     private String llegirNom(RandomAccessFile raf) throws IOException {
-        // *************** CODI PRÀCTICA **********************/
-        return "<nom>"; // Substitueix pel teu
+        byte[] nomBytes = new byte[NAME_MAX_BYTES];
+        raf.readFully(nomBytes);
+        return new String(nomBytes, StandardCharsets.UTF_8).trim();
     }
 
+    // Hecho con chatgpt porque no sabia como hacerlo
     private void escriureNom(RandomAccessFile raf, String nom) throws IOException {
-        // *************** CODI PRÀCTICA **********************/
+        byte[] nomBytes = nom.getBytes(StandardCharsets.UTF_8);
+        if (nomBytes.length > NAME_MAX_BYTES) {
+            int cutoff = NAME_MAX_BYTES;
+            while (cutoff > 0 && (nomBytes[cutoff] & 0xC0) == 0x80) {
+                cutoff--;  // Retroceder para evitar truncar un carácter multibyte en medio
+            }
+            byte[] truncat = new byte[cutoff];
+            System.arraycopy(nomBytes, 0, truncat, 0, cutoff);
+            nomBytes = truncat;  // Usamos el array truncado
+        }
+        byte[] nomAmbEspais = new byte[NAME_MAX_BYTES];
+        System.arraycopy(nomBytes, 0, nomAmbEspais, 0, nomBytes.length);
+        raf.write(nomAmbEspais);
     }
 }
